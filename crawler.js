@@ -4,22 +4,24 @@ const {getDatabaseRepository} = require('./databaseRepository')
 const uuid = require('uuid')
 
 async function startCrawler(req){
-    beginCrawling(req.body)
-    return await createJobInDatabase()
+    const jobId = await createJobInDatabase()
+    beginCrawling(req.body, jobId)
+    return jobId
 }
 
-async function beginCrawling(reqBody){
+async function beginCrawling(reqBody, jobId){
+    const databaseRepository = await getDatabaseRepository()
+
     try{
-        const databaseRepository = getDatabaseRepository()
         const contractAddress = await getContratAddressFromRequestBody(reqBody)
         const ABI = await findABIFromContractAddress(contractAddress)
         const smartContractObject = await createSmartContractObject(ABI, contractAddress)
         await crawlTokens(smartContractObject)
-        await databaseRepository.updateJobStatus('Done')
+        await databaseRepository.updateJobStatus(jobId, 'Done')
     }
     catch(error){
         console.log(error)
-        await databaseRepository.updateJobStatus('Failed')
+        await databaseRepository.updateJobStatus(jobId, 'Failed')
     }
 }
 
@@ -49,20 +51,22 @@ async function* getTokensMetadata(contractObject){
     for(let i = 0; i <= 10; i++){
         const tokenID = await contractObject.methods.tokenByIndex(i).call()
         const tokenURI = await contractObject.methods.tokenURI(tokenID).call()
-        const tokenMetada = await fetch(tokenURI)
-        yield await tokenMetada.json()
+        const data = await fetch(tokenURI)
+        const tokenMetada = await data.json()
+        tokenMetada.id = tokenID
+        yield await tokenMetada
     }
 }
 
 async function saveTokenMetadataToDB(tokenMetadata){
-    const databaseRepository = getDatabaseRepository()
+    const databaseRepository = await getDatabaseRepository()
     await databaseRepository.storeTokenMetadata(tokenMetadata)
 }  
 
 async function createJobInDatabase(){
     try{
         const jobId = uuid.v4()
-        const databaseRepository = getDatabaseRepository()
+        const databaseRepository = await getDatabaseRepository()
         await databaseRepository.createJob(jobId)
         return jobId
     }
