@@ -2,13 +2,23 @@ var mysql = require('mysql');
 
 function getDatabaseRepository(){
 
-    const connection = connectToDb()
+    //const connection = connectToDb()
 
     return {
-        storeTokenMetadata
+        storeTokenMetadata,
+        createJob,
+        updateJobStatus
     }
 
     async function storeTokenMetadata(metadata){
+        console.log(`storing to db: ${metadata}`)
+    }
+
+    async function createJob(jobId){
+
+    }
+
+    async function updateJobStatus(newStatus){
 
     }
 }

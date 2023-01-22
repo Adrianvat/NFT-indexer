@@ -2,16 +2,14 @@ const express = require('express')
 const app = express()
 require('dotenv').config()
 const bodyParser = require('body-parser')
-const {findABIFromContractAddressMiddleware} = require('./middlewares/findABIFromContractAddressMiddleware')
-const {createSmartContractObjectMiddleware} = require('./middlewares/createSmartContractObjectMiddleware')
-const {crawlTokensMiddleware} = require('./middlewares/crawlTokensMiddleware')
+const { startCrawler } = require('./crawler')
 
 app.use(bodyParser.urlencoded({ extended: true }))
 
-app.post('/crawler', (req, res) => {
+app.post('/crawler', async (req, res) => {
+    const jobId = await startCrawler(req)
 
-
-    res.send()
+    res.send(jobId)
 })
 
 app.get('/crawler/:jobId', (req, res) => {

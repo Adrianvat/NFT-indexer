@@ -1,16 +1,26 @@
 const fetch = require('node-fetch')
-var Web3 = require('web3');
+const Web3 = require('web3')
+const {getDatabaseRepository} = require('./databaseRepository')
+const uuid = require('uuid')
 
-function start(req){
+async function startCrawler(req){
     beginCrawling(req.body)
-    return 'jobId'
+    return await createJobInDatabase()
 }
 
 async function beginCrawling(reqBody){
-    const contractAddress = await getContratAddressFromRequestBody(reqBody)
-    const ABI = await findABIFromContractAddress(contractAddress)
-    const smartContractObject = await createSmartContractObject(ABI, contractAddress)
-    await crawlTokens(smartContractObject)
+    try{
+        const databaseRepository = getDatabaseRepository()
+        const contractAddress = await getContratAddressFromRequestBody(reqBody)
+        const ABI = await findABIFromContractAddress(contractAddress)
+        const smartContractObject = await createSmartContractObject(ABI, contractAddress)
+        await crawlTokens(smartContractObject)
+        await databaseRepository.updateJobStatus('Done')
+    }
+    catch(error){
+        console.log(error)
+        await databaseRepository.updateJobStatus('Failed')
+    }
 }
 
 async function findABIFromContractAddress(contractAddress){
@@ -48,3 +58,17 @@ async function saveTokenMetadataToDB(tokenMetadata){
     const databaseRepository = getDatabaseRepository()
     await databaseRepository.storeTokenMetadata(tokenMetadata)
 }  
+
+async function createJobInDatabase(){
+    try{
+        const jobId = uuid.v4()
+        const databaseRepository = getDatabaseRepository()
+        await databaseRepository.createJob(jobId)
+        return jobId
+    }
+    catch(error){
+        console.log(error)
+    }
+}
+
+exports.startCrawler = startCrawler
