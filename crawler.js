@@ -16,7 +16,7 @@ async function beginCrawling(reqBody, jobId){
         const contractAddress = await getContratAddressFromRequestBody(reqBody)
         const ABI = await findABIFromContractAddress(contractAddress)
         const smartContractObject = await createSmartContractObject(ABI, contractAddress)
-        await crawlTokens(smartContractObject)
+        await crawlTokens(smartContractObject, contractAddress)
         await databaseRepository.updateJobStatus(jobId, 'Done')
     }
     catch(error){
@@ -41,26 +41,27 @@ function getContratAddressFromRequestBody(body){
     return body.contractAddress ? body.contractAddress : process.env.DEFAULT_CONTRACT_ADDRESS
 }
 
-async function crawlTokens(contractObject){
-    for await(const tokenMetada of getTokensMetadata(contractObject)){
+async function crawlTokens(contractObject, contractAddress){
+    for await(const tokenMetada of getTokensMetadata(contractObject, contractAddress)){
         await saveTokenMetadataToDB(tokenMetada)
     }
 }
 
-async function* getTokensMetadata(contractObject){
+async function* getTokensMetadata(contractObject, contractAddress){
     for(let i = 0; i <= 10; i++){
         const tokenID = await contractObject.methods.tokenByIndex(i).call()
         const tokenURI = await contractObject.methods.tokenURI(tokenID).call()
         const data = await fetch(tokenURI)
         const tokenMetada = await data.json()
         tokenMetada.id = tokenID
+        tokenMetada.contractAddress = contractAddress
         yield await tokenMetada
     }
 }
 
 async function saveTokenMetadataToDB(tokenMetadata){
     const databaseRepository = await getDatabaseRepository()
-    await databaseRepository.storeTokenMetadata(tokenMetadata)
+    await databaseRepository.upsertTokenMetadata(tokenMetadata)
 }  
 
 async function createJobInDatabase(){

@@ -3,6 +3,7 @@ const app = express()
 require('dotenv').config()
 const bodyParser = require('body-parser')
 const { startCrawler } = require('./crawler')
+const { getDatabaseRepository } = require('./databaseRepository')
 
 app.use(bodyParser.urlencoded({ extended: true }))
 
@@ -12,8 +13,10 @@ app.post('/crawler', async (req, res) => {
     res.send(jobId)
 })
 
-app.get('/crawler/:jobId', (req, res) => {
-
+app.get('/crawler/:jobId', async (req, res) => {
+    const databaseRepository = await getDatabaseRepository()
+    const job = await databaseRepository.getJob(req.params.jobId)
+    res.json(job[0][0])
 })
 
 app.get('contract/:address/:tokenId', (req, res) => {

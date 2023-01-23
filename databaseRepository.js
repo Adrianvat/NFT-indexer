@@ -6,22 +6,38 @@ async function getDatabaseRepository(){
     if(!connection) connection = await connectToDb()
 
     return {
-        storeTokenMetadata,
+        upsertTokenMetadata,
         createJob,
-        updateJobStatus
+        updateJobStatus,
+        getJob,
+        getTokenMetadata
     }
 
-    async function storeTokenMetadata(metadata){
-        console.log(metadata.image_url)
+    async function upsertTokenMetadata(metadata){
         metadata.description = metadata.description.replace(/'/g, "\\'")
-        console.log(metadata.description)
+        await connection.promise().query(`REPLACE INTO tokensMetadata (id, imageUrl, externalUrl, name, description, animationUrl, iframeUrl, contractAddress) VALUES(${metadata.id}, '${metadata.image_url}', '${metadata.external_url}', '${metadata.name}', '${metadata.description}', '${metadata.animation_url}', '${metadata.iframe_url}', '${metadata.contractAddress}');`)
+        await upsertTokenAttributes(metadata)
+    }
 
-        await connection.promise().query(`REPLACE INTO tokensMetadata (id, imageUrl, externalUrl, name, description, animationUrl, iframeUrl) VALUES(${metadata.id}, '${metadata.image_url}', '${metadata.external_url}', '${metadata.name}', '${metadata.description}', '${metadata.animation_url}', '${metadata.iframe_url}');`)
+    async function upsertTokenAttributes(metadata){
+        const promises = metadata.attributes.map(async attribute => {
+            return await connection.promise().query(`REPLACE INTO attributes (tokenId, traitType, contractAddress, value) VALUES(${metadata.id}, '${attribute.trait_type}', '${metadata.contractAddress}', '${attribute.value}');`)
+        })
+        await Promise.all(promises)
     }
 
     async function createJob(jobId){
         
         await connection.promise().query(`INSERT INTO jobs (jobId, status) VALUES('${jobId}', 'In Progress');`)
+    }
+
+    async function getJob(id){
+        return await connection.promise().query(`SELECT * FROM jobs WHERE jobId = '${id}'`)
+    }
+
+    async function getTokenMetadata(contractAddress, tokenId){
+        const attributes = await connection.promise().query(`SELECT * FROM attributes WHERE contractAddress = '${contractAddress}' AND tokenId = ${tokenId}`)
+        console.log(attributes)
     }
 
     async function updateJobStatus(id, newStatus){
