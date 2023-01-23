@@ -36,8 +36,12 @@ async function getDatabaseRepository(){
     }
 
     async function getTokenMetadata(contractAddress, tokenId){
-        const attributes = await connection.promise().query(`SELECT * FROM attributes WHERE contractAddress = '${contractAddress}' AND tokenId = ${tokenId}`)
-        console.log(attributes)
+        const attributes = await connection.promise().query(`SELECT traitType, value FROM attributes WHERE contractAddress = '${contractAddress}' AND tokenId = ${tokenId}`)
+        const metadata = await connection.promise().query(`SELECT * FROM tokensMetadata WHERE contractAddress = '${contractAddress}' AND id = ${tokenId}`)
+        return {
+            ...metadata[0][0],
+            attributes: attributes[0]
+        }
     }
 
     async function updateJobStatus(id, newStatus){

@@ -2,11 +2,18 @@ const fetch = require('node-fetch')
 const Web3 = require('web3')
 const {getDatabaseRepository} = require('./databaseRepository')
 const uuid = require('uuid')
+const { startTracking, stopTracking, increaseCurrentProgress } = require('./progressTracker')
 
 async function startCrawler(req){
-    const jobId = await createJobInDatabase()
-    beginCrawling(req.body, jobId)
-    return jobId
+    try{
+        const jobId = await createJobInDatabase()
+        beginCrawling(req.body, jobId)
+        return jobId
+    }
+    catch(error){
+        console.log(error)
+        return null
+    }
 }
 
 async function beginCrawling(reqBody, jobId){
@@ -14,9 +21,10 @@ async function beginCrawling(reqBody, jobId){
 
     try{
         const contractAddress = await getContratAddressFromRequestBody(reqBody)
+        console.log(contractAddress)
         const ABI = await findABIFromContractAddress(contractAddress)
         const smartContractObject = await createSmartContractObject(ABI, contractAddress)
-        await crawlTokens(smartContractObject, contractAddress)
+        await crawlTokens(smartContractObject, contractAddress, jobId)
         await databaseRepository.updateJobStatus(jobId, 'Done')
     }
     catch(error){
@@ -41,21 +49,31 @@ function getContratAddressFromRequestBody(body){
     return body.contractAddress ? body.contractAddress : process.env.DEFAULT_CONTRACT_ADDRESS
 }
 
-async function crawlTokens(contractObject, contractAddress){
-    for await(const tokenMetada of getTokensMetadata(contractObject, contractAddress)){
+async function crawlTokens(contractObject, contractAddress, jobId){
+    const numberOfTokens = await contractObject.methods.totalSupply().call()
+    startTracking(jobId, numberOfTokens)
+    for await(const tokenMetada of getTokensMetadata(contractObject, contractAddress, numberOfTokens)){
         await saveTokenMetadataToDB(tokenMetada)
+        increaseCurrentProgress(jobId)
     }
+    stopTracking(jobId)
 }
 
-async function* getTokensMetadata(contractObject, contractAddress){
-    for(let i = 0; i <= 10; i++){
-        const tokenID = await contractObject.methods.tokenByIndex(i).call()
-        const tokenURI = await contractObject.methods.tokenURI(tokenID).call()
-        const data = await fetch(tokenURI)
-        const tokenMetada = await data.json()
-        tokenMetada.id = tokenID
-        tokenMetada.contractAddress = contractAddress
-        yield await tokenMetada
+async function* getTokensMetadata(contractObject, contractAddress, numberOfTokens){
+    for(let i = 0; i <= numberOfTokens; i++){
+        try{
+            const tokenID = await contractObject.methods.tokenByIndex(i).call()
+            const tokenURI = await contractObject.methods.tokenURI(tokenID).call()
+            const data = await fetch(tokenURI)
+            const tokenMetada = await data.json()
+            tokenMetada.id = tokenID
+            tokenMetada.contractAddress = contractAddress
+            yield await tokenMetada
+        }
+        catch(error){
+            console.log(error)
+            continue
+        }
     }
 }
 
